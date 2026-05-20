@@ -1,0 +1,75 @@
+import Database from 'better-sqlite3';
+import getDatabase from '../database/connection';
+import { Friendship } from '../types/db.types';
+
+export class FriendshipRepository {
+  private db: Database.Database;
+
+  constructor() {
+    this.db = getDatabase();
+  }
+
+  findFriends(userId: number): Friendship[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM friendships 
+      WHERE (user_id = ? OR friend_id = ?) AND status = 'accepted'
+    `);
+    return stmt.all(userId, userId) as Friendship[];
+  }
+
+  findPendingRequests(userId: number): Friendship[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM friendships 
+      WHERE friend_id = ? AND status = 'pending'
+    `);
+    return stmt.all(userId) as Friendship[];
+  }
+
+  findByUsers(userId1: number, userId2: number): Friendship | null {
+    const stmt = this.db.prepare(`
+      SELECT * FROM friendships 
+      WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)
+    `);
+    return stmt.get(userId1, userId2, userId2, userId1) as Friendship | null;
+  }
+
+  create(userId: number, friendId: number): Friendship {
+    const stmt = this.db.prepare(`
+      INSERT INTO friendships (user_id, friend_id, status)
+      VALUES (?, ?, 'pending')
+    `);
+
+    const result = stmt.run(userId, friendId);
+
+    return {
+      id: result.lastInsertRowid as number,
+      user_id: userId,
+      friend_id: friendId,
+      status: 'pending',
+      created_at: new Date(),
+    };
+  }
+
+  accept(id: number): void {
+    const stmt = this.db.prepare(`
+      UPDATE friendships 
+      SET status = 'accepted'
+      WHERE id = ?
+    `);
+    stmt.run(id);
+  }
+
+  reject(id: number): void {
+    const stmt = this.db.prepare(`
+      UPDATE friendships 
+      SET status = 'rejected'
+      WHERE id = ?
+    `);
+    stmt.run(id);
+  }
+
+  delete(id: number): void {
+    const stmt = this.db.prepare('DELETE FROM friendships WHERE id = ?');
+    stmt.run(id);
+  }
+}

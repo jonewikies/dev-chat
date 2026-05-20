@@ -1,0 +1,5 @@
+{
+  "name": "DevChat - AI-Powered R&D Management",
+  "description": "A WhatsApp-style IM tool integrated with R&D process management, featuring AI-driven task and document generation from chat content.",
+  "requestFramePermissions": []
+}

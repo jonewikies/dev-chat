@@ -1,0 +1,65 @@
+import Database from 'better-sqlite3';
+import getDatabase from '../database/connection';
+import { ProjectMember } from '../types/db.types';
+
+export class ProjectMemberRepository {
+  private db: Database.Database;
+
+  constructor() {
+    this.db = getDatabase();
+  }
+
+  findByProjectAndUser(projectId: number, userId: number): ProjectMember | null {
+    const stmt = this.db.prepare(`
+      SELECT * FROM project_members 
+      WHERE project_id = ? AND user_id = ?
+    `);
+    return stmt.get(projectId, userId) as ProjectMember | null;
+  }
+
+  findByProject(projectId: number): ProjectMember[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM project_members 
+      WHERE project_id = ?
+    `);
+    return stmt.all(projectId) as ProjectMember[];
+  }
+
+  create(data: {
+    projectId: number;
+    userId: number;
+    role: 'owner' | 'member' | 'viewer';
+  }): ProjectMember {
+    const stmt = this.db.prepare(`
+      INSERT INTO project_members (project_id, user_id, role)
+      VALUES (?, ?, ?)
+    `);
+
+    const result = stmt.run(data.projectId, data.userId, data.role);
+
+    return {
+      id: result.lastInsertRowid as number,
+      project_id: data.projectId,
+      user_id: data.userId,
+      role: data.role,
+      joined_at: new Date(),
+    };
+  }
+
+  updateRole(projectId: number, userId: number, role: string): void {
+    const stmt = this.db.prepare(`
+      UPDATE project_members 
+      SET role = ?
+      WHERE project_id = ? AND user_id = ?
+    `);
+    stmt.run(role, projectId, userId);
+  }
+
+  delete(projectId: number, userId: number): void {
+    const stmt = this.db.prepare(`
+      DELETE FROM project_members 
+      WHERE project_id = ? AND user_id = ?
+    `);
+    stmt.run(projectId, userId);
+  }
+}

@@ -1,0 +1,127 @@
+import Database from 'better-sqlite3';
+import getDatabase from '../database/connection';
+import { Task } from '../types/db.types';
+
+export class TaskRepository {
+  private db: Database.Database;
+
+  constructor() {
+    this.db = getDatabase();
+  }
+
+  findById(id: number): Task | null {
+    const stmt = this.db.prepare(`
+      SELECT * FROM tasks WHERE id = ?
+    `);
+    return stmt.get(id) as Task | null;
+  }
+
+  findByProject(
+    projectId: number,
+    filters?: {
+      status?: string;
+      priority?: string;
+      assigneeId?: number;
+    }
+  ): Task[] {
+    let sql = `SELECT * FROM tasks WHERE project_id = ?`;
+    const params: any[] = [projectId];
+
+    if (filters?.status) {
+      sql += ` AND status = ?`;
+      params.push(filters.status);
+    }
+
+    if (filters?.priority) {
+      sql += ` AND priority = ?`;
+      params.push(filters.priority);
+    }
+
+    if (filters?.assigneeId) {
+      sql += ` AND assignee_id = ?`;
+      params.push(filters.assigneeId);
+    }
+
+    sql += ` ORDER BY created_at DESC`;
+
+    const stmt = this.db.prepare(sql);
+    return stmt.all(...params) as Task[];
+  }
+
+  create(data: {
+    projectId: number;
+    title: string;
+    description?: string;
+    status?: 'open' | 'in_progress' | 'review' | 'done';
+    priority?: 'low' | 'medium' | 'high' | 'urgent';
+    assigneeId?: number;
+    parentTaskId?: number;
+  }): Task {
+    const stmt = this.db.prepare(`
+      INSERT INTO tasks (
+        project_id, title, description, status, priority, 
+        assignee_id, parent_task_id
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      data.projectId,
+      data.title,
+      data.description || null,
+      data.status || 'open',
+      data.priority || 'medium',
+      data.assigneeId || null,
+      data.parentTaskId || null
+    );
+
+    return this.findById(result.lastInsertRowid as number)!;
+  }
+
+  update(id: number, data: Partial<Task>): Task {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (data.title !== undefined) {
+      fields.push('title = ?');
+      values.push(data.title);
+    }
+    if (data.description !== undefined) {
+      fields.push('description = ?');
+      values.push(data.description);
+    }
+    if (data.status !== undefined) {
+      fields.push('status = ?');
+      values.push(data.status);
+    }
+    if (data.priority !== undefined) {
+      fields.push('priority = ?');
+      values.push(data.priority);
+    }
+    if (data.assignee_id !== undefined) {
+      fields.push('assignee_id = ?');
+      values.push(data.assignee_id);
+    }
+
+    if (fields.length === 0) {
+      return this.findById(id)!;
+    }
+
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id);
+
+    const stmt = this.db.prepare(`
+      UPDATE tasks 
+      SET ${fields.join(', ')}
+      WHERE id = ?
+    `);
+
+    stmt.run(...values);
+    return this.findById(id)!;
+  }
+
+  delete(id: number): void {
+    const stmt = this.db.prepare('DELETE FROM tasks WHERE id = ?');
+    stmt.run(id);
+  }
+}
